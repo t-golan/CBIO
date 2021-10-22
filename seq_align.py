@@ -9,6 +9,7 @@ GAP = '-'
 X = 0
 Y = 1
 
+
 class GlobalAlignment:
     def __init__(self, score_df, seq_a, seq_b):
         self.score_df = score_df
@@ -87,6 +88,7 @@ class GlobalAlignment:
         return self.mat[self.n-1][self.m-1][SCORE]
 
 
+
 class LocalAlignment:
     def __init__(self, score_df, seq_a, seq_b):
         self.score_df = score_df
@@ -108,6 +110,7 @@ class LocalAlignment:
 
     def get_score(self):
         pass
+
 
 class OverlapAlignment:
     def __init__(self, score_df, seq_a, seq_b):
@@ -146,11 +149,11 @@ def fastaread(fasta_name):
         return header, seq
 
 
-def print_alignment(alignment_a, alignment_b, type, score):
+def print_alignment(str_a, str_b, type, score):
     # prints alignment strings in chunks of 50 chars
-    for i in range(0, max(len(alignment_a), len(alignment_b)), 50):
-        print(alignment_a[i:i + 50])
-        print(alignment_b[i:i + 50])
+    for i in range(0, max(len(str_a), len(str_b)), 50):
+        print(str_a[i:i + 50])
+        print(str_b[i:i + 50])
         print()
     print(f'{type}:{score}')
 
@@ -184,7 +187,7 @@ def main():
     elif command_args.align_type == 'overlap':
         o = OverlapAlignment(score_df, seq_a, seq_b)
         #o.align()
-        score = o.get_score()
+        #score = o.get_score()
         #str_a, str_b = o.get_strings()
         #print_alignment(str_a, str_b, command_args.align_type, score)
 
