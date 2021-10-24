@@ -97,19 +97,77 @@ class LocalAlignment:
 
         self.n = len(seq_a)
         self.m = len(seq_b)
-        self.mat = np.ndarray(shape=(self.n, self.m), dtype=tuple)
+        self.mat = np.ndarray(shape=(self.n + 1, self.m + 1), dtype=tuple)
 
     def sigma(self, i, j):
-        pass
+        # if i is not gap, gets corresponding letter from seq
+        if i == GAP:
+            a = i
+        else:
+            a = self.seq_a[i - 1]
+        # if j is not gap, gets corresponding letter from seq
+        if j == GAP:
+            b = j
+        else:
+            b = self.seq_b[j - 1]
+        return self.score_df[a][b]
 
     def align(self):
-        pass
+        for col in range(self.m + 1):
+            for row in range(self.n + 1):
+                # base case, assign score = 0 and no prev coordinates
+                if row == 0 or col == 0:
+                    self.mat[row][col] = (0, None)
+                else:
+                    # for each of the three options create a tuple of score, coord
+                    options = [
+                        (self.mat[row - 1][col][SCORE] + self.sigma(row, GAP),
+                         (row - 1, col)),
+                        (self.mat[row][col - 1][SCORE] + self.sigma(GAP, col),
+                         (row, col - 1)),
+                        (self.mat[row - 1][col - 1][SCORE] + self.sigma(row,
+                                                                        col),
+                         (row - 1, col - 1)),
+                        (0, None)]
+
+                    # get optimal tuple based on max score
+                    optimal = max(options, key=lambda option: option[SCORE])
+                    self.mat[row][col] = optimal
 
     def get_strings(self):
-        pass
+        # get coordinates of maximum score
+        mat_df = pd.DataFrame(self.mat)
+        score_mat = mat_df.applymap(lambda x: x[SCORE]).to_numpy()
+        coord = np.unravel_index(score_mat.argmax(), score_mat.shape)
+        prev_coord = self.mat[coord[X]][coord[Y]][COORD]
+        alignment_a = ''
+        alignment_b = ''
+        while prev_coord != None:
+            # diagonal case
+            if (prev_coord[X] == coord[X] - 1) and \
+                    (prev_coord[Y] == coord[Y] - 1):
+                alignment_a += self.seq_a[coord[X] - 1]
+                alignment_b += self.seq_b[coord[Y] - 1]
+            # horizontal case - progressed in seq_b but not in seq_a
+            elif (prev_coord[X] == coord[X] - 1) and \
+                    (prev_coord[Y] != coord[Y] - 1):
+                alignment_a += self.seq_a[coord[X] - 1]
+                alignment_b += GAP
+            # vertical case - progressed in seq_a but not in seq_b
+            elif (prev_coord[X] != coord[X] - 1) and \
+                    (prev_coord[Y] == coord[Y] - 1):
+                alignment_a += GAP
+                alignment_b += self.seq_b[coord[Y] - 1]
+            coord = prev_coord
+            prev_coord = self.mat[coord[X]][coord[Y]][COORD]
+        # alignment is recovered in reverse order, [::-1] reverses strings back
+        return alignment_a[::-1], alignment_b[::-1]
+
 
     def get_score(self):
-        pass
+        mat_df = pd.DataFrame(self.mat)
+        score_df = mat_df.applymap(lambda x: x[SCORE])
+        return score_df.to_numpy().max()
 
 
 class OverlapAlignment:
@@ -170,7 +228,6 @@ def main():
     command_args = parser.parse_args()
     header_a, seq_a = fastaread(command_args.seq_a)
     header_b, seq_b = fastaread(command_args.seq_b)
-    # seq_a, seq_b ='AAAAAAAGT','AACT'
     score_df = pd.read_csv(command_args.score, sep='\t', index_col=0)
     # fasta_head, fasta_seq = fastaread(command_args)
     if command_args.align_type == 'global':
@@ -181,10 +238,10 @@ def main():
         print_alignment(str_a, str_b, command_args.align_type, score)
     elif command_args.align_type == 'local':
         l = LocalAlignment(score_df, seq_a, seq_b)
-        #l.align()
-        #score = l.get_score()
-        #str_a, str_b = l.get_strings()
-        #print_alignment(str_a, str_b, command_args.align_type, score)
+        l.align()
+        score = l.get_score()
+        str_a, str_b = l.get_strings()
+        print_alignment(str_a, str_b, command_args.align_type, score)
     elif command_args.align_type == 'overlap':
         o = OverlapAlignment(score_df, seq_a, seq_b)
         #o.align()
