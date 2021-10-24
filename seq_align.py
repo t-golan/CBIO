@@ -18,24 +18,24 @@ class GlobalAlignment:
 
         self.n = len(seq_a)
         self.m = len(seq_b)
-        self.mat = np.ndarray(shape=(self.n, self.m), dtype=tuple)
+        self.mat = np.ndarray(shape=(self.n+1, self.m+1), dtype=tuple)
 
     def sigma(self, i, j):
         # if i is not gap, gets corresponding letter from seq
         if i == GAP:
             a = i
         else:
-            a = self.seq_a[i]
+            a = self.seq_a[i-1]
         # if j is not gap, gets corresponding letter from seq
         if j == GAP:
             b = j
         else:
-            b = self.seq_b[j]
+            b = self.seq_b[j-1]
         return self.score_df[a][b]
 
     def align(self):
-        for col in range(self.m):
-            for row in range(self.n):
+        for col in range(self.m+1):
+            for row in range(self.n+1):
                 # base case, assign score = 0 and prev coordinates 0,0
                 if row == 0 and col == 0:
                     self.mat[row][col] = (0, (0, 0))
@@ -60,7 +60,7 @@ class GlobalAlignment:
                     self.mat[row][col] = optimal
 
     def get_strings(self):
-        coord = (self.n-1, self.m-1)
+        coord = (self.n, self.m)
         alignment_a = ''
         alignment_b = ''
         while coord != (0, 0):
@@ -68,24 +68,24 @@ class GlobalAlignment:
             # diagonal case
             if (prev_coord[X] == coord[X] - 1) and \
                     (prev_coord[Y] == coord[Y] - 1):
-                alignment_a += self.seq_a[coord[X]]
-                alignment_b += self.seq_b[coord[Y]]
+                alignment_a += self.seq_a[coord[X]-1]
+                alignment_b += self.seq_b[coord[Y]-1]
             # horizontal case - progressed in seq_b but not in seq_a
             elif (prev_coord[X] == coord[X] - 1) and \
                     (prev_coord[Y] != coord[Y] - 1):
-                alignment_a += GAP
-                alignment_b += self.seq_b[coord[Y]]
+                alignment_a += self.seq_a[coord[X]-1]
+                alignment_b += GAP
             # vertical case - progressed in seq_a but not in seq_b
             elif (prev_coord[X] != coord[X] - 1) and \
                     (prev_coord[Y] == coord[Y] - 1):
-                alignment_a += self.seq_a[coord[X]]
-                alignment_b += GAP
+                alignment_a += GAP
+                alignment_b += self.seq_b[coord[Y]-1]
             coord = prev_coord
         # alignment is recovered in reverse order, [::-1] reverses strings back
         return alignment_a[::-1], alignment_b[::-1]
 
     def get_score(self):
-        return self.mat[self.n-1][self.m-1][SCORE]
+        return self.mat[self.n][self.m][SCORE]
 
 
 
@@ -170,6 +170,7 @@ def main():
     command_args = parser.parse_args()
     header_a, seq_a = fastaread(command_args.seq_a)
     header_b, seq_b = fastaread(command_args.seq_b)
+    # seq_a, seq_b ='AAAAAAAGT','AACT'
     score_df = pd.read_csv(command_args.score, sep='\t', index_col=0)
     # fasta_head, fasta_seq = fastaread(command_args)
     if command_args.align_type == 'global':
