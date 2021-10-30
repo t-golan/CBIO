@@ -1,4 +1,6 @@
 import argparse
+import sys
+
 import numpy as np
 from itertools import groupby
 import pandas as pd
@@ -51,9 +53,9 @@ class GlobalAlignment:
                 else:
                     # for each of the three options create a tuple of score, coord
                     options = [
+                    (self.mat[row-1][col-1][SCORE] + self.sigma(row, col), (row-1, col-1)),
                     (self.mat[row-1][col][SCORE] + self.sigma(row, GAP), (row-1, col)),
-                    (self.mat[row][col-1][SCORE] + self.sigma(GAP, col), (row, col-1)),
-                    (self.mat[row-1][col-1][SCORE] + self.sigma(row, col), (row-1, col-1))]
+                    (self.mat[row][col-1][SCORE] + self.sigma(GAP, col), (row, col-1))]
 
                     # get optimal tuple based on max score
                     optimal = max(options, key=lambda option: option[SCORE])
@@ -121,13 +123,13 @@ class LocalAlignment:
                 else:
                     # for each of the three options create a tuple of score, coord
                     options = [
+                        (self.mat[row - 1][col - 1][SCORE] + self.sigma(row,
+                                                                        col),
+                         (row - 1, col - 1)),
                         (self.mat[row - 1][col][SCORE] + self.sigma(row, GAP),
                          (row - 1, col)),
                         (self.mat[row][col - 1][SCORE] + self.sigma(GAP, col),
                          (row, col - 1)),
-                        (self.mat[row - 1][col - 1][SCORE] + self.sigma(row,
-                                                                        col),
-                         (row - 1, col - 1)),
                         (0, None)]
 
                     # get optimal tuple based on max score
@@ -164,6 +166,7 @@ class LocalAlignment:
         # alignment is recovered in reverse order, [::-1] reverses strings back
         return alignment_a[::-1], alignment_b[::-1]
 
+
     def get_score(self):
         get_score = np.vectorize(lambda x: x[SCORE])
         score_mat = get_score(self.mat)
@@ -178,80 +181,87 @@ class OverlapAlignment:
 
         self.n = len(seq_a)
         self.m = len(seq_b)
-        self.mat = np.ndarray(shape=(self.n, self.m), dtype=tuple)
+        self.mat = np.ndarray(shape=(self.n+1, self.m+1), dtype=tuple)
+
 
     def sigma(self, i, j):
         # if i is not gap, gets corresponding letter from seq
         if i == GAP:
             a = i
         else:
-            a = self.seq_a[i - 1]
+            a = self.seq_a[i-1]
         # if j is not gap, gets corresponding letter from seq
         if j == GAP:
             b = j
         else:
-            b = self.seq_b[j - 1]
+            b = self.seq_b[j-1]
         return self.score_df[a][b]
 
 
     def align(self):
-        for col in range(self.m + 1):
-            for row in range(self.n + 1):
+        for col in range(self.m+1):
+            for row in range(self.n+1):
                 # base case, assign score = 0 and prev coordinates 0,0
-                if col == 0 or row == 0:
-                    self.mat[row][col] = (0, None)
-                # all other blocks have three options
+                if row == 0 and col == 0:
+                    self.mat[row][col] = (0, (0, 0))
+                # first column has only the option of gaps
+                elif col == 0:
+                    opt_score = self.mat[row-1][col][SCORE] + max(0, self.sigma(row, GAP))
+                    self.mat[row][col] = (opt_score, (row-1, col))
+                # first row has only the option of gaps
+                elif row == 0:
+                    opt_score = self.mat[row][col - 1][SCORE] + self.sigma(GAP, col)
+                    self.mat[row][col] = (opt_score, (row, col - 1))
+                # in the last row we can use gaps at the beginning "for free"
                 else:
-                    # for each of the three options create a tuple of score, coord
                     options = [
-                        (self.mat[row - 1][col - 1][SCORE] + self.sigma(row,
-                                                                        col),
-                         (row - 1, col - 1)),
-                        (self.mat[row - 1][col][SCORE] + self.sigma(row, GAP),
-                         (row - 1, col)),
-                        (self.mat[row][col - 1][SCORE] + self.sigma(GAP, col),
-                         (row, col - 1))
-                    ]
-                    # get optimal tuple based on max score
-                    optimal = max(options, key=lambda option: option[SCORE])
-                    self.mat[row][col] = optimal
+                    (self.mat[row-1][col-1][SCORE] + self.sigma(row, col), (row-1, col-1)),
+                    (self.mat[row-1][col][SCORE] + self.sigma(row, GAP), (row-1, col)),
+                    (self.mat[row][col-1][SCORE] + self.sigma(GAP, col), (row, col-1))]
+                    if row == self.n:
+                        options.append((0, None))
+                        # get optimal tuple based on max score
+                        optimal = max(options, key=lambda option: option[SCORE])
+                        self.mat[row][col] = optimal
+                    else:
+                        # get optimal tuple based on max score
+                        optimal = max(options, key=lambda option: option[SCORE])
+                        self.mat[row][col] = optimal
 
-    def get_strings(self):
-        # get coordinates of maximum score in last row
-        get_score = np.vectorize(lambda x: x[SCORE])
-        score_arr = get_score(self.mat[self.n][:])
-        best_col = score_arr.argmax()
-        coord = (self.n, best_col)
 
-        prev_coord = self.mat[coord[X]][coord[Y]][COORD]
+    def get_strings(self, coord):
+        coord = coord
         alignment_a = ''
         alignment_b = ''
-        while prev_coord != None:
+        while coord[1] != 0:
+            prev_coord = self.mat[coord[X]][coord[Y]][COORD]
             # diagonal case
             if (prev_coord[X] == coord[X] - 1) and \
                     (prev_coord[Y] == coord[Y] - 1):
-                alignment_a += self.seq_a[coord[X] - 1]
-                alignment_b += self.seq_b[coord[Y] - 1]
+                alignment_a += self.seq_a[coord[X]-1]
+                alignment_b += self.seq_b[coord[Y]-1]
             # horizontal case - progressed in seq_b but not in seq_a
             elif (prev_coord[X] == coord[X] - 1) and \
                     (prev_coord[Y] != coord[Y] - 1):
-                alignment_a += self.seq_a[coord[X] - 1]
+                alignment_a += self.seq_a[coord[X]-1]
                 alignment_b += GAP
             # vertical case - progressed in seq_a but not in seq_b
             elif (prev_coord[X] != coord[X] - 1) and \
                     (prev_coord[Y] == coord[Y] - 1):
                 alignment_a += GAP
-                alignment_b += self.seq_b[coord[Y] - 1]
+                alignment_b += self.seq_b[coord[Y]-1]
             coord = prev_coord
-            prev_coord = self.mat[coord[X]][coord[Y]][COORD]
         # alignment is recovered in reverse order, [::-1] reverses strings back
         return alignment_a[::-1], alignment_b[::-1]
 
-    def get_score(self):
-        get_score = np.vectorize(lambda x: x[SCORE])
-        # get scores of last row
-        score_arr = get_score(self.mat[self.n][:])
-        return np.max(score_arr)
+
+
+    def get_best(self):
+        mat_df = pd.DataFrame(self.mat[self.n][:])
+        score_df = mat_df.applymap(lambda x: x[SCORE])
+        scores = score_df.to_numpy()
+        coords = (self.n, scores.argmax())
+        return coords
 
 
 def fastaread(fasta_name):
@@ -276,7 +286,6 @@ def print_alignment(str_a, str_b, type, score):
         print()
     print(f'{type} : {score}')
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('seq_a',
@@ -290,6 +299,7 @@ def main():
     command_args = parser.parse_args()
     header_a, seq_a = fastaread(command_args.seq_a)
     header_b, seq_b = fastaread(command_args.seq_b)
+    # seq_a, seq_b = "TTTAA", "CCCC"
     score_df = pd.read_csv(command_args.score, sep='\t', index_col=0)
     # fasta_head, fasta_seq = fastaread(command_args)
     if command_args.align_type == 'global':
@@ -307,9 +317,14 @@ def main():
     elif command_args.align_type == 'overlap':
         o = OverlapAlignment(score_df, seq_a, seq_b)
         o.align()
-        score = o.get_score()
-        str_a, str_b = o.get_strings()
+        best = o.get_best()
+        score = o.mat[best][SCORE]
+        # no overlap
+        if(score == 0):
+            best = (0, 0)
+        str_a, str_b = o.get_strings(best)
         print_alignment(str_a, str_b, command_args.align_type, score)
+
 
 
 if __name__ == '__main__':
