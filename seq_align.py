@@ -1,6 +1,14 @@
-import argparse
-import sys
+"""
+CBIO Exercise 1
 
+This program gets two sequences of letters that represent  base peairs of genes,
+and finds the best alignment between them by chosen strategy and given score tableת
+using dynamic programing.
+
+By Maayan Amid and Tamir Golan
+"""
+
+import argparse
 import numpy as np
 from itertools import groupby
 import pandas as pd
@@ -13,6 +21,10 @@ Y = 1
 
 
 class GlobalAlignment:
+    """
+    Finds the best alignment between two sequences,
+     using all of the characters of each sequence
+    """
     def __init__(self, score_df, seq_a, seq_b):
         self.score_df = score_df
         self.seq_a = seq_a
@@ -92,6 +104,10 @@ class GlobalAlignment:
 
 
 class LocalAlignment:
+    """
+    Finds the best alignment between all the sub-strings
+    of the two sequences
+    """
     def __init__(self, score_df, seq_a, seq_b):
         self.score_df = score_df
         self.seq_a = seq_a
@@ -174,6 +190,10 @@ class LocalAlignment:
 
 
 class OverlapAlignment:
+    """
+        Finds the best alignment between two sequences,
+     in respect to the overlap between the end of one and begging of the other
+    """
     def __init__(self, score_df, seq_a, seq_b):
         self.score_df = score_df
         self.seq_a = seq_a
@@ -233,7 +253,7 @@ class OverlapAlignment:
         coord = coord
         alignment_a = ''
         alignment_b = ''
-        while coord[1] != 0:
+        while coord != (0,0):
             prev_coord = self.mat[coord[X]][coord[Y]][COORD]
             # diagonal case
             if (prev_coord[X] == coord[X] - 1) and \
@@ -299,7 +319,6 @@ def main():
     command_args = parser.parse_args()
     header_a, seq_a = fastaread(command_args.seq_a)
     header_b, seq_b = fastaread(command_args.seq_b)
-    # seq_a, seq_b = "TTTAA", "CCCC"
     score_df = pd.read_csv(command_args.score, sep='\t', index_col=0)
     # fasta_head, fasta_seq = fastaread(command_args)
     if command_args.align_type == 'global':
@@ -319,9 +338,6 @@ def main():
         o.align()
         best = o.get_best()
         score = o.mat[best][SCORE]
-        # no overlap
-        if(score == 0):
-            best = (0, 0)
         str_a, str_b = o.get_strings(best)
         print_alignment(str_a, str_b, command_args.align_type, score)
 
